@@ -23,7 +23,7 @@ from locksmith.ui.toolkit.widgets import (
     FloatingLabelLineEdit,
     LocksmithButton,
     LocksmithInvertedButton,
-    CollapsibleSection
+    CollapsibleSection,
 )
 
 logger = help.ogler.getLogger(__name__)
@@ -74,8 +74,7 @@ class CreateVaultDialog(LocksmithDialog):
         self.enable_2fa_button.setFixedWidth(300)
 
         self._2fa_section = CollapsibleSection(
-            button=self.enable_2fa_button,
-            on_expand_changed=self._on_2fa_expand_changed
+            button=self.enable_2fa_button, on_expand_changed=self._on_2fa_expand_changed
         )
         self.enable_2fa_button.clicked.connect(self._2fa_section.toggle)
 
@@ -112,7 +111,7 @@ class CreateVaultDialog(LocksmithDialog):
             show_close_button=True,
             content=content_widget,
             buttons=button_row,
-            show_overlay=False
+            show_overlay=False,
         )
 
         # Set initial size
@@ -153,7 +152,7 @@ class CreateVaultDialog(LocksmithDialog):
         #     return
 
         # Format and stretch passcode using Argon2
-        bran = ''
+        bran = ""
         if passcode:
             formatted = format_bran(passcode)
             bran = stretch_password_to_passcode(formatted)
@@ -167,10 +166,10 @@ class CreateVaultDialog(LocksmithDialog):
 
             # Prepare kwargs for Habery creation
             kwa = dict()
-            kwa['salt'] = signing.Salter(raw=self.config.salt.encode('utf-8')).qb64
-            kwa['bran'] = bran
-            kwa['algo'] = self.config.algo
-            kwa['tier'] = self.config.tier
+            kwa["salt"] = signing.Salter(raw=self.config.salt.encode("utf-8")).qb64
+            kwa["bran"] = bran
+            kwa["algo"] = self.config.algo
+            kwa["tier"] = self.config.tier
 
             # Create the Habery
             is_temp = self.config.temp
@@ -191,7 +190,10 @@ class CreateVaultDialog(LocksmithDialog):
             if is_temp:
                 # Temp vaults: immediately open (they can't be found on disk later)
                 from locksmith.core.vaulting import run_vault_controller
-                rgy = credentialing.Regery(hby=hby, name=hby.name, base=self.config.base, temp=True)
+
+                rgy = credentialing.Regery(
+                    hby=hby, name=hby.name, base=self.config.base, temp=True
+                )
                 vault, qtask = run_vault_controller(app=self.app, hby=hby, rgy=rgy)
                 self.app.open_vault(name=name, vault=vault, qtask=qtask)
                 logger.info(f"Temp vault opened: {name}")
@@ -222,7 +224,20 @@ class CreateVaultDialog(LocksmithDialog):
 
         except kering.AuthError as ex:
             logger.error(f"Authentication error creating vault: {ex}")
-            self.show_error(f"Authentication error: {str(ex)}")
+            detail = str(ex)
+            if (
+                "Last seed missing" in detail
+                or "not associated with last aeid" in detail
+            ):
+                self.show_error(
+                    "Could not initialize encrypted storage for this vault name with the passcode "
+                    "you entered. A vault with this name may already exist with different credentials, "
+                    "or local data may be incomplete—try another name, use the original passcode, or "
+                    "remove stale vault data for this base. If you use the locksmith-demo launcher, "
+                    "run RESET_DEMO_STATE=1 (see that repo's README) before retrying."
+                )
+            else:
+                self.show_error(f"Authentication error: {detail}")
 
         except ValueError as ex:
             logger.error(f"Value error creating vault: {ex}")
@@ -242,7 +257,10 @@ class CreateVaultDialog(LocksmithDialog):
             if not self._otp_secret:
                 vault_name = self.name_field.text().strip()
                 if not vault_name:
-                    self.show_error("Please enter a vault name before enabling 2FA.", extra_height=20)
+                    self.show_error(
+                        "Please enter a vault name before enabling 2FA.",
+                        extra_height=20,
+                    )
                     self._2fa_section.toggle()
                     return
 
@@ -252,7 +270,7 @@ class CreateVaultDialog(LocksmithDialog):
                     pixmap = otping.generate_qr_pixmap(uri)
                     self._qr_label.setPixmap(pixmap)
                     self._qr_label.setFixedSize(pixmap.size())
-                    
+
                     self._2fa_section._content_height = self._QR_CODE_SIZE
                     self._2fa_section.content_area.setFixedHeight(self._QR_CODE_SIZE)
                 except Exception as e:
@@ -263,7 +281,7 @@ class CreateVaultDialog(LocksmithDialog):
 
             self._otp_enabled = True
             self._animate_to_height(self._2FA_EXPANDED_HEIGHT)
-            
+
         else:
             self.enable_2fa_button.setText("Enable 2-Factor Authentication")
             self._otp_enabled = False
