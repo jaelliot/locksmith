@@ -6,14 +6,20 @@ locksmith.core.challenging module
 This module contains the peer-to-peer challenge response protocol
 
 """
+
 import os
+import tempfile
 
 from hio.base import doing
 from hio.help import decking
 from keri import help
 from keri.peer import exchanging
 from locksmith.turret import directing
-from locksmith.turret.handling import IdentifiersHandler, CredentialsHandler, IPEXGrantRequestHandler
+from locksmith.turret.handling import (
+    IdentifiersHandler,
+    CredentialsHandler,
+    IPEXGrantRequestHandler,
+)
 from locksmith.turret.uxd import Server, ServerDoer
 
 logger = help.ogler.getLogger(__name__)
@@ -31,12 +37,14 @@ def load_handlers(hby, rgy, exc, cues):
     exc.addHandler(igr)
 
 
-FORMAT = '%(asctime)s [turret] %(levelname)-8s %(message)s'
+FORMAT = "%(asctime)s [turret] %(levelname)-8s %(message)s"
+
 
 class TurretDoer(doing.DoDoer):
-    """ Doer for turret"""
+    """Doer for turret"""
+
     def __init__(self, hby, rgy, locksmith_alias, plugin_identifier, **kwa):
-        """  Initialize the TurretDoer
+        """Initialize the TurretDoer
 
         Args:
             hby: Habitat database instance used for retrieving settings and configurations.
@@ -47,19 +55,22 @@ class TurretDoer(doing.DoDoer):
         hab = hby.habByName(locksmith_alias, ns="settings")
         cues = decking.Deck()
 
-        if os.path.exists("/tmp/keripy_kli.s"):
-            os.remove("/tmp/keripy_kli.s")
+        _socket_path = os.path.join(tempfile.gettempdir(), "keripy_kli.s")
+        if os.path.exists(_socket_path):
+            os.remove(_socket_path)
 
-        server = Server(path="/tmp/keripy_kli.s", bufsize=8069)
+        server = Server(path=_socket_path, bufsize=8069)
         server_doer = ServerDoer(server=server)
 
         exc = exchanging.Exchanger(hby, handlers=[])
         load_handlers(hby, rgy, exc, cues)
 
         self.shim = ExchangerShim(aid=plugin_identifier, exc=exc)
-        directant = directing.Directant(hab=hab, server=server, exchanger=self.shim, cues=cues)
+        directant = directing.Directant(
+            hab=hab, server=server, exchanger=self.shim, cues=cues
+        )
 
-        doers =  [directant, server_doer]
+        doers = [directant, server_doer]
 
         super(TurretDoer, self).__init__(doers=doers, **kwa)
 
@@ -68,7 +79,6 @@ class TurretDoer(doing.DoDoer):
 
 
 class ExchangerShim:
-
     def __init__(self, aid, exc):
         logger.debug(f"creating with {aid}")
         self.aid = aid
@@ -81,4 +91,3 @@ class ExchangerShim:
             self.exchanger.processEvent(serder, tsgs, cigars, **kwargs)
         else:
             logger.info(f"Received an exn message from invalid signer={sender}")
-

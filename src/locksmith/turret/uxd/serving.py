@@ -101,8 +101,10 @@ class Acceptor(tyming.Tymee):
         if not self.ss:
             return 0, 0
 
-        return (self.ss.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF),
-                self.ss.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
+        return (
+            self.ss.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF),
+            self.ss.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF),
+        )
 
     def open(self):
         """
@@ -111,6 +113,12 @@ class Acceptor(tyming.Tymee):
         if socket not closed properly, binding socket gets error
            OSError: (48, 'Address already in use')
         """
+        if not hasattr(socket, "AF_UNIX"):
+            raise NotImplementedError(
+                "Turret UXD bridge requires Unix-domain socket support (socket.AF_UNIX). "
+                "This platform does not provide AF_UNIX. "
+                "Upgrade to Windows 10 version 1803 or later, or run on macOS/Linux."
+            )
         # create server socket ss to listen on
         self.ss = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -120,7 +128,7 @@ class Acceptor(tyming.Tymee):
         self.ss.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         # Linux TCP allocates twice the requested size
-        if sys.platform.startswith('linux'):
+        if sys.platform.startswith("linux"):
             bs = 2 * self.bs  # get size is twice the set size
         else:
             bs = self.bs
@@ -218,13 +226,7 @@ class Server(Acceptor):
 
     Tymeout = 1.0  # tymeout in seconds virtual tyme
 
-    def __init__(self,
-                 ha=None,
-                 host="",
-                 port=56000,
-                 tymeout=None,
-                 wl=None,
-                 **kwa):
+    def __init__(self, ha=None, host="", port=56000, tymeout=None, wl=None, **kwa):
         """
         Initialization method for instance.
         Parameters:
@@ -261,13 +263,15 @@ class Server(Acceptor):
         while self.axes:
             cs, ca = self.axes.popleft()
 
-            remoter = Remoter(tymth=self.tymth,
-                              ha=cs.getsockname(),
-                              ca=ca,
-                              cs=cs,
-                              bs=self.bs,
-                              wl=self.wl,
-                              timeout=self.tymeout)
+            remoter = Remoter(
+                tymth=self.tymth,
+                ha=cs.getsockname(),
+                ca=ca,
+                cs=cs,
+                bs=self.bs,
+                wl=self.wl,
+                timeout=self.tymeout,
+            )
             if ca in self.ixes and self.ixes[ca] is not remoter:
                 self.shutdownIx(ca)
             self.ixes[ca] = remoter
@@ -361,7 +365,9 @@ class Server(Acceptor):
             try:
                 ix.serviceReceives()
             except OSError as ex:
-                logger.error("Closing incoming socket on %s.\n%s\n", ix.cs.getpeername(), ex)
+                logger.error(
+                    "Closing incoming socket on %s.\n%s\n", ix.cs.getpeername(), ex
+                )
                 self.removeIx(ca=ca)  # also closes ix
 
     def transmitIx(self, data, ca):
@@ -389,13 +395,14 @@ class Server(Acceptor):
         self.serviceSendsAllIx()
 
 
-def initServerContext(context=None,
-                      version=None,
-                      certify=None,
-                      keypath=None,
-                      certpath=None,
-                      cafilepath=None
-                      ):
+def initServerContext(
+    context=None,
+    version=None,
+    certify=None,
+    keypath=None,
+    certpath=None,
+    cafilepath=None,
+):
     """
     Initialize and return context for TLS Server
     IF context is None THEN create a context
@@ -440,9 +447,7 @@ def initServerContext(context=None,
             context.verify_mode = certify if certify is not None else ssl.CERT_REQUIRED
 
     if cafilepath:
-        context.load_verify_locations(cafile=cafilepath,
-                                      capath=None,
-                                      cadata=None)
+        context.load_verify_locations(cafile=cafilepath, capath=None, cadata=None)
     elif context.verify_mode != ssl.CERT_NONE:
         context.load_default_certs(purpose=ssl.Purpose.CLIENT_AUTH)
 
@@ -483,14 +488,16 @@ class ServerTls(Server):
         .cafilepath is path to ca file
     """
 
-    def __init__(self,
-                 context=None,
-                 version=None,
-                 certify=None,
-                 keypath=None,
-                 certpath=None,
-                 cafilepath=None,
-                 **kwa):
+    def __init__(
+        self,
+        context=None,
+        version=None,
+        certify=None,
+        keypath=None,
+        certpath=None,
+        cafilepath=None,
+        **kwa,
+    ):
         """
         Initialization method for instance.
         """
@@ -505,13 +512,14 @@ class ServerTls(Server):
         self.certpath = certpath
         self.cafilepath = cafilepath
 
-        self.context = initServerContext(context=context,
-                                         version=version,
-                                         certify=certify,
-                                         keypath=keypath,
-                                         certpath=certpath,
-                                         cafilepath=cafilepath
-                                         )
+        self.context = initServerContext(
+            context=context,
+            version=version,
+            certify=certify,
+            keypath=keypath,
+            certpath=certpath,
+            cafilepath=cafilepath,
+        )
 
     def serviceAxes(self):
         """
@@ -523,20 +531,21 @@ class ServerTls(Server):
         self.serviceAccepts()  # populate .axes
         while self.axes:
             cs, ca = self.axes.popleft()
-            remoter = RemoterTls(tymth=self.tymth,
-                                 ha=cs.getsockname(),
-                                 ca=ca,
-                                 bs=self.bs,
-                                 cs=cs,
-                                 wl=self.wl,
-                                 timeout=self.tymeout,
-                                 context=self.context,
-                                 version=self.version,
-                                 certify=self.certify,
-                                 keypath=self.keypath,
-                                 certpath=self.certpath,
-                                 cafilepath=self.cafilepath,
-                                 )
+            remoter = RemoterTls(
+                tymth=self.tymth,
+                ha=cs.getsockname(),
+                ca=ca,
+                bs=self.bs,
+                cs=cs,
+                wl=self.wl,
+                timeout=self.tymeout,
+                context=self.context,
+                version=self.version,
+                certify=self.certify,
+                keypath=self.keypath,
+                certpath=self.certpath,
+                cafilepath=self.cafilepath,
+            )
 
             self.cxes[ca] = remoter
 
@@ -572,19 +581,12 @@ class Remoter(tyming.Tymee):
     Class to service an incoming nonblocking TCP connection from a remote client.
     Should only be used by an Acceptor subclass such as Server
     """
+
     Tymeout = 0.0  # virtual tymeout in seconds
 
-    def __init__(self,
-                 ha,
-                 ca,
-                 cs,
-                 tymeout=None,
-                 refreshable=True,
-                 bs=8096,
-                 wl=None,
-                 **kwa
-                 ):
-
+    def __init__(
+        self, ha, ca, cs, tymeout=None, refreshable=True, bs=8096, wl=None, **kwa
+    ):
         """
         Initialization method for instance.
         ha = host address duple (host, port) near side of connection. cs.getsockname()
@@ -683,18 +685,24 @@ class Remoter(tyming.Tymee):
             # the value of a given errno.XXXXX may be different on each os
             if ex.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return None  # keep trying
-            elif ex.args[0] in (errno.ECONNRESET,
-                                errno.ENETRESET,
-                                errno.ENETUNREACH,
-                                errno.EHOSTUNREACH,
-                                errno.ENETDOWN,
-                                errno.EHOSTDOWN,
-                                errno.ETIMEDOUT,
-                                errno.ECONNREFUSED):
+            elif ex.args[0] in (
+                errno.ECONNRESET,
+                errno.ENETRESET,
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.ENETDOWN,
+                errno.EHOSTDOWN,
+                errno.ETIMEDOUT,
+                errno.ECONNREFUSED,
+            ):
                 self.cutoff = True  # this signals need to close/reopen connection
                 return bytes()  # data empty
             else:  # unexpected error
-                logger.error("Unexpected error on receive on %s.\n%s\n", self.cs.getpeername(), ex)
+                logger.error(
+                    "Unexpected error on receive on %s.\n%s\n",
+                    self.cs.getpeername(),
+                    ex,
+                )
                 raise  # re-raise
 
         if data:  # connection open
@@ -748,14 +756,16 @@ class Remoter(tyming.Tymee):
             # the value of a given errno.XXXXX may be different on each os
             if ex.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 count = 0  # blocked try again
-            elif ex.args[0] in (errno.ECONNRESET,
-                                errno.ENETRESET,
-                                errno.ENETUNREACH,
-                                errno.EHOSTUNREACH,
-                                errno.ENETDOWN,
-                                errno.EHOSTDOWN,
-                                errno.ETIMEDOUT,
-                                errno.ECONNREFUSED):
+            elif ex.args[0] in (
+                errno.ECONNRESET,
+                errno.ENETRESET,
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.ENETDOWN,
+                errno.EHOSTDOWN,
+                errno.ETIMEDOUT,
+                errno.ECONNREFUSED,
+            ):
                 self.cutoff = True  # this signals need to close/reopen connection
                 count = 0
             else:
@@ -800,15 +810,16 @@ class RemoterTls(Remoter):
         aborted (bool): True means client aborted TLS handshake False otherwise
     """
 
-    def __init__(self,
-                 context=None,
-                 version=None,
-                 certify=None,
-                 keypath=None,
-                 certpath=None,
-                 cafilepath=None,
-                 **kwa):
-
+    def __init__(
+        self,
+        context=None,
+        version=None,
+        certify=None,
+        keypath=None,
+        certpath=None,
+        cafilepath=None,
+        **kwa,
+    ):
         """
         Initialization method for instance.
         context = context object for tls/ssl If None use default
@@ -829,13 +840,14 @@ class RemoterTls(Remoter):
         self.connected = False  # True once ssl handshake completed
         self.aborted = False  # True if client aborts TLS handshake prematurely
 
-        self.context = initServerContext(context=context,
-                                         version=version,
-                                         certify=certify,
-                                         keypath=keypath,
-                                         certpath=certpath,
-                                         cafilepath=cafilepath
-                                         )
+        self.context = initServerContext(
+            context=context,
+            version=version,
+            certify=certify,
+            keypath=keypath,
+            certpath=certpath,
+            cafilepath=cafilepath,
+        )
         self.wrap()
 
     def close(self):
@@ -852,9 +864,9 @@ class RemoterTls(Remoter):
         """
         Wrap socket .cs in ssl context
         """
-        self.cs = self.context.wrap_socket(self.cs,
-                                           server_side=True,
-                                           do_handshake_on_connect=False)
+        self.cs = self.context.wrap_socket(
+            self.cs, server_side=True, do_handshake_on_connect=False
+        )
 
     def handshake(self):
         """
@@ -871,19 +883,34 @@ class RemoterTls(Remoter):
                 return  # in progress try again later
 
             elif ex.errno in (ssl.SSL_ERROR_EOF,):  # give up client terminated
-                logger.error("SSLError aborted tls handshake of %s with %s.\n%s\n", self.ha, self.ca, ex)
+                logger.error(
+                    "SSLError aborted tls handshake of %s with %s.\n%s\n",
+                    self.ha,
+                    self.ca,
+                    ex,
+                )
                 self.close()
                 self.aborted = True  # indicate client aborted handshake
                 return  # caller checks .aborted
 
             else:
-                logger.error("SSLError during tls handshake of %s with %s.\n%s\n", self.ha, self.ca, ex)
+                logger.error(
+                    "SSLError during tls handshake of %s with %s.\n%s\n",
+                    self.ha,
+                    self.ca,
+                    ex,
+                )
                 self.close()
                 self.aborted = True  # indicate client aborted handshake
                 return  # caller checks .aborted
 
         except OSError as ex:
-            logger.error("OSError during tls handshake of %s with %s.\n%s\n", self.ha, self.ca, ex)
+            logger.error(
+                "OSError during tls handshake of %s with %s.\n%s\n",
+                self.ha,
+                self.ca,
+                ex,
+            )
             self.close()
             self.aborted = True  # indicate client aborted handshake
             if ex.errno in (errno.ECONNABORTED,):  # give up client aborted
@@ -913,19 +940,25 @@ class RemoterTls(Remoter):
             # the value of a given errno.XXXXX may be different on each os
             if ex.args[0] in (ssl.SSL_ERROR_WANT_READ, ssl.SSL_ERROR_WANT_WRITE):
                 return None  # blocked waiting for data
-            elif ex.args[0] in (errno.ECONNRESET,
-                                errno.ENETRESET,
-                                errno.ENETUNREACH,
-                                errno.EHOSTUNREACH,
-                                errno.ENETDOWN,
-                                errno.EHOSTDOWN,
-                                errno.ETIMEDOUT,
-                                errno.ECONNREFUSED,
-                                ssl.SSLEOFError):
+            elif ex.args[0] in (
+                errno.ECONNRESET,
+                errno.ENETRESET,
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.ENETDOWN,
+                errno.EHOSTDOWN,
+                errno.ETIMEDOUT,
+                errno.ECONNREFUSED,
+                ssl.SSLEOFError,
+            ):
                 self.cutoff = True  # this signals need to close/reopen connection
                 return bytes()  # data empty
             else:
-                logger.error("Unexpected error on receive on %s.\n%s\n", self.cs.getpeername(), ex)
+                logger.error(
+                    "Unexpected error on receive on %s.\n%s\n",
+                    self.cs.getpeername(),
+                    ex,
+                )
                 raise  # re-raise
 
         if data:  # connection open
@@ -951,15 +984,17 @@ class RemoterTls(Remoter):
             # the value of a given errno.XXXXX may be different on each os
             if ex.args[0] in (ssl.SSL_ERROR_WANT_READ, ssl.SSL_ERROR_WANT_WRITE):
                 result = 0  # blocked try again
-            elif ex.args[0] in (errno.ECONNRESET,
-                                errno.ENETRESET,
-                                errno.ENETUNREACH,
-                                errno.EHOSTUNREACH,
-                                errno.ENETDOWN,
-                                errno.EHOSTDOWN,
-                                errno.ETIMEDOUT,
-                                errno.ECONNREFUSED,
-                                ssl.SSLEOFError):
+            elif ex.args[0] in (
+                errno.ECONNRESET,
+                errno.ENETRESET,
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.ENETDOWN,
+                errno.EHOSTDOWN,
+                errno.ETIMEDOUT,
+                errno.ECONNREFUSED,
+                ssl.SSLEOFError,
+            ):
                 self.cutoff = True  # this signals need to close/reopen connection
                 result = 0
             else:
@@ -1006,8 +1041,7 @@ class ServerDoer(doing.Doer):
         self.server.wind(tymth)
 
     def enter(self, **kwargs):
-        """
-        """
+        """ """
         self.server.reopen()
 
     def recur(self, tyme):
